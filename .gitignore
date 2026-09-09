@@ -46,3 +46,5 @@ next-env.d.ts
 
 # local editor/agent config
 .claude/
+.env*
+!.env.example

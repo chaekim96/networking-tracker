@@ -2,7 +2,7 @@
 
 A private networking tracker for the people you want to stay connected with at Berkeley. Each user signs in with their own account and manages a personal contact list: name, company, role, where you met, notes, and a priority level. Contacts are stored in Neon Postgres and isolated per user by Row Level Security enforced **in the database**, so one user can never read or modify another user's records even though the Data API is publicly reachable. Built with Next.js, deployed on Vercel.
 
-**Live app:** <!-- FILL IN: paste your Vercel URL here -->
+**Live app:** https://networking-tracker-chae13.vercel.app
 
 ---
 
@@ -294,12 +294,15 @@ The tests deliberately exercise the shapes a hand-crafted `curl` request would s
 ## Deployment
 
 1. Push the final repository to GitHub.
-2. Import the repository into Vercel (or deploy with the Vercel CLI).
-3. In Vercel's project settings, add the production environment variables listed above. Confirm the server-only variables are not prefixed with `NEXT_PUBLIC_`.
-4. Add the deployed Vercel domain to Neon Auth's trusted origins, then confirm sign-in works on the live URL. **Sign-in will fail if this step is skipped.**
-5. Open the public URL in a private browser window and confirm the app loads for a signed-out visitor.
-6. Create two accounts on the live app and repeat the two-user privacy test in production.
-7. Run every Definition of Done check against the deployed application.
+2. Import the repository into Vercel (or deploy with the Vercel CLI: `vercel deploy --prod`).
+3. In Vercel's project settings, add the environment variables listed above for both Production and Preview. `NEXT_PUBLIC_NEON_AUTH_URL`, `NEXT_PUBLIC_NEON_DATA_API_URL`, and `NEON_DATA_API_URL` are all `config` type.
+
+   **`DATABASE_URL` is deliberately NOT set in Vercel.** The application never uses it — only the local `npm run db:push` script does. Adding it to the deployment would place an RLS-bypassing credential in the runtime environment for no reason.
+4. **Turn off Deployment Protection** (Project → Settings → Deployment Protection → Vercel Authentication → Disabled). It is on by default and redirects every visitor to a Vercel login page, so the app is not publicly reachable until it is off.
+5. Add the deployed Vercel domain to Neon Auth's trusted origins, then confirm sign-in works on the live URL. **Sign-in will fail if this step is skipped.**
+6. Open the public URL in a private browser window and confirm the app loads for a signed-out visitor.
+7. Create two accounts on the live app and repeat the two-user privacy test in production.
+8. Run every Definition of Done check against the deployed application.
 
 Vercel redeploys automatically on every push to the default branch.
 
@@ -411,7 +414,8 @@ grep -rl "DATABASE_URL\|postgresql://" .next/static   # no matches
 - No pagination — every row a user owns is fetched and rendered at once.
 - No rate limiting on write operations.
 - Route protection is client-side. This is a UX choice rather than a security gap (RLS is the boundary), but a signed-out visitor briefly sees a loading skeleton before being redirected.
-- `getAccessToken()` in `lib/auth/client.ts` reads the token endpoint defensively across two possible field names, because the `@neondatabase/neon-js` 0.7.0-beta typings do not yet describe that response shape.
+- `getAccessToken()` in `lib/auth/client.ts` calls the auth service's `/token` endpoint directly rather than through the SDK, because `@neondatabase/neon-js` 0.7.0-beta exposes no working token accessor on `client.auth`. If a later release adds one, this should move back to the SDK.
+- `PATCH /api/contacts/:id` replaces every editable field rather than merging, so it behaves like `PUT`. The edit form always submits the complete object, so this is correct in practice, but a partial payload would null out omitted fields.
 
 **What I would improve next**
 - Add an integration test that signs in as two users and asserts the RLS boundary holds, rather than verifying it manually.
