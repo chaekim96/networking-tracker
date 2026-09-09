@@ -3,5 +3,6 @@ import { resolve } from 'node:path';
 
 export default defineConfig({
   test: { environment: 'node', include: ['__tests__/**/*.test.ts'] },
-  resolve: { alias: { '@': resolve(__dirname, '.') } },
+  // import.meta.dirname, not __dirname: this config is ESM.
+  resolve: { alias: { '@': resolve(import.meta.dirname, '.') } },
 });

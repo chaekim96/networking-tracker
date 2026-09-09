@@ -34,6 +34,25 @@ const sortLabels: Record<SortKey, string> = {
 
 const priorityRank: Record<Priority, number> = { high: 0, medium: 1, low: 2 };
 
+/**
+ * Turn whatever went wrong into something a person can act on.
+ *
+ * A dropped connection surfaces as `TypeError: Failed to fetch`, which tells
+ * the user nothing and looks like a crash. Anything we do not recognise gets a
+ * generic line rather than raw exception text.
+ */
+function readableLoadError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err ?? '');
+
+  if (err instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(raw)) {
+    return 'We could not reach the server. Check your connection and try again.';
+  }
+  if (/jwt|token|unauthor/i.test(raw)) {
+    return 'Your session has expired. Please sign in again.';
+  }
+  return 'Something went wrong loading your contacts. Please try again.';
+}
+
 const priorityLabels: Record<Priority, string> = {
   high: 'High',
   medium: 'Medium',
@@ -69,9 +88,7 @@ export function ContactsView() {
       setContacts((data ?? []) as Contact[]);
       setStatus('ready');
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Could not load your contacts.'
-      );
+      setError(readableLoadError(err));
       setStatus('error');
     }
   }, []);
