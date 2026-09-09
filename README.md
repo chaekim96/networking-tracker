@@ -337,7 +337,19 @@ The tests deliberately exercise the shapes a hand-crafted `curl` request would s
 7. Create two accounts on the live app and repeat the two-user privacy test in production.
 8. Run every Definition of Done check against the deployed application.
 
-Vercel redeploys automatically on every push to the default branch.
+The repository is connected to the Vercel project, so **every push to `main`
+redeploys automatically**. This requires two separate things on the Vercel
+side, and it is easy to do only the first: a GitHub *login connection* on your
+Vercel account, and the Vercel *GitHub App* installed on the repository.
+
+Note that a project can have more than one production alias, and deployment
+protection may not apply to them identically. Confirm the URL you publish is
+actually reachable while signed out:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://<your-domain>/auth/sign-in
+# 200 = public.  302 to vercel.com/sso-api = still protected.
+```
 
 ---
 
