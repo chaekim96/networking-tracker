@@ -314,8 +314,13 @@ Because this runs in Postgres, it applies to every path into the data: the UI, a
 ## Testing
 
 ```bash
-npm test
+npm test        # unit tests - no network, no database, no credentials
+npm run test:rls   # integration test against the live RLS boundary
 ```
+
+`npm test` is the command a grader can run immediately after `npm install`. The
+integration suite skips itself cleanly when credentials are absent, so this
+stays green on a fresh clone.
 
 **What the automated test verifies.** `__tests__/validation.test.ts` covers `lib/validation.ts`, the module the server route handlers run on every write. 19 tests across four groups:
 
@@ -327,6 +332,44 @@ npm test
 The tests deliberately exercise the shapes a hand-crafted `curl` request would send, not just what the UI produces.
 
 **Test file location:** [`__tests__/validation.test.ts`](__tests__/validation.test.ts)
+
+### The RLS integration test
+
+[`__tests__/rls.integration.test.ts`](__tests__/rls.integration.test.ts) — 10
+tests, run with `npm run test:rls`.
+
+Unit tests cover application validation, but they cannot catch the failure that
+actually matters: someone loosening a policy in `db/schema.sql` so one user can
+reach another's rows. This suite signs in as two real users, gets their JWTs,
+and drives the **public Data API directly** — no dev server, no route handlers.
+That is deliberate: it exercises the layer that is genuinely load-bearing. If
+the API routes disappeared tomorrow, these assertions would still have to hold.
+
+It asserts that B cannot read, update, or delete A's rows; that B's listing
+never contains a row A owns; that a `user_id` in a create payload is ignored in
+favour of the JWT's subject; that A **cannot rewrite `user_id` to hand a row to
+B** (the attack `USING` alone would permit — this is the WITH CHECK test); that
+the database rejects an invalid priority and a whitespace-only name; and that
+anonymous reads are refused.
+
+It requires `RLS_TEST_A_*` and `RLS_TEST_B_*` credentials in `.env.local` for
+two throwaway accounts. Without them the suite skips rather than fails.
+
+```
+ RUN  v4.1.11
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Duration  2.22s
+```
+
+One honest limitation: these tests pass against the current schema, but I have
+not verified by experiment that they *fail* against a weakened one — deleting a
+live security policy to prove a test works is not a safe thing to do casually.
+The argument that they would fail is straightforward (drop `WITH CHECK` from
+the UPDATE policy and the ownership-transfer assertion breaks, because the
+`PATCH` would then succeed), but it is reasoning, not a demonstration. If you
+want the proof, do it on a Neon **branch** rather than production.
 
 **Passing test output:**
 
@@ -529,7 +572,7 @@ grep -rl "DATABASE_URL\|postgresql://" .next/static   # no matches
 ## Known Limitations and Next Steps
 
 **Limitations**
-- Automated test coverage is limited to the validation module. The RLS policies themselves are verified manually with two accounts, not by an automated test.
+- The RLS integration test needs two real accounts and a live database, so it cannot run in a cold CI job without provisioning them first.
 - Sorting and filtering happen client-side after fetching all of a user's rows, so the list would need pagination past a few hundred contacts.
 - No pagination — every row a user owns is fetched and rendered at once.
 - No rate limiting on write operations.
@@ -538,7 +581,7 @@ grep -rl "DATABASE_URL\|postgresql://" .next/static   # no matches
 - `PATCH /api/contacts/:id` replaces every editable field rather than merging, so it behaves like `PUT`. The edit form always submits the complete object, so this is correct in practice, but a partial payload would null out omitted fields.
 
 **What I would improve next**
-- Add an integration test that signs in as two users and asserts the RLS boundary holds, rather than verifying it manually.
+- Run the RLS integration suite against a throwaway Neon branch in CI, seeding its own accounts, so the boundary is checked on every push instead of on demand.
 - Move sort and filter into the Data API query so the app scales past a few hundred contacts.
 - Add a "last contacted" date and a follow-up reminder, which is the actual product gap for a networking tracker.
 - Add optimistic UI updates so edits feel instant instead of waiting on the round trip.

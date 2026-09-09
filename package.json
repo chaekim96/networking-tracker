@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:push": "node --env-file=.env.local scripts/apply-schema.mjs"
+    "db:push": "node --env-file=.env.local scripts/apply-schema.mjs",
+    "test:rls": "RLS_INTEGRATION=1 vitest run __tests__/rls.integration.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

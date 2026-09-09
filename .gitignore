@@ -48,3 +48,7 @@ next-env.d.ts
 .claude/
 .env*
 !.env.example
+
+# Next.js regenerates these agent-instruction files on `next dev`
+AGENTS.md
+CLAUDE.md
