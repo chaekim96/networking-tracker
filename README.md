@@ -193,6 +193,13 @@ Real values live in `.env.local` (gitignored) and in the Vercel dashboard for pr
 | `DATABASE_URL` | **Server only** | Direct Postgres connection string. Bypasses RLS, so it must never reach the browser or Git. Used only by `npm run db:push`. |
 | `NEON_DATA_API_URL` | **Server only** | Same endpoint as the public Data API URL, read by the write route handlers so server code never reaches for a public variable. |
 
+The Neon endpoints follow these shapes:
+
+```
+NEXT_PUBLIC_NEON_AUTH_URL      https://<endpoint>.neonauth.<region>.aws.neon.tech/<db>/auth
+NEXT_PUBLIC_NEON_DATA_API_URL  https://<endpoint>.apirest.<region>.aws.neon.tech/<db>/rest/v1
+```
+
 `NEON_AUTH_BASE_URL` and `NEON_AUTH_COOKIE_SECRET` are **not used** by this implementation. The assignment requires them to be server-only "if your implementation uses them." Because the starter prompt mandates the `@neondatabase/neon-js` two-URL object form for authentication, the browser talks to Neon Auth directly and Neon manages the session, so there is no Next.js cookie-signing proxy to configure. Fewer secrets is a smaller attack surface; there is no cookie secret to leak because there is no cookie secret.
 
 Any variable prefixed `NEXT_PUBLIC_` is compiled into the client bundle and is readable by anyone. Server-only variables are deliberately not prefixed. `lib/server/data-api.ts` additionally imports `server-only`, which makes the build fail if that module is ever pulled into a client component.
@@ -300,12 +307,76 @@ Vercel redeploys automatically on every push to the default branch.
 
 ## Security Verification
 
-**Two-account isolation test.**
+### Verified against the live database
+
+These were run against the provisioned Neon project after applying `db/schema.sql`.
+
+**1. RLS hides rows from the `authenticated` role.** Two rows were inserted directly as the table owner (which bypasses RLS), then queried as the role the Data API actually connects with:
+
+```sql
+set local role authenticated;
+select count(*) from public.contacts;
+-- 0        (while 2 rows existed)
+```
+
+Zero rows, not an error — which is the correct RLS behaviour. Rows that fail the `USING` clause simply do not exist as far as the query is concerned.
+
+**2. The CHECK constraints reject bad data at the database.**
+
+```sql
+insert into public.contacts (user_id, name, priority)
+values ('probe','Bad Priority','urgent');
+-- ERROR: violates check constraint "contacts_priority_valid"
+
+insert into public.contacts (user_id, name, priority)
+values ('probe','   ','high');
+-- ERROR: violates check constraint "contacts_name_not_blank"
+```
+
+Note the second one: the name was `'   '`, which `not null` alone would have accepted.
+
+**3. The public Data API rejects anonymous and forged access.**
+
+```bash
+curl "$NEXT_PUBLIC_NEON_DATA_API_URL/contacts?select=*"
+# HTTP 400 — "missing authentication credentials: required authorization bearer token in JWT format"
+
+curl "$NEXT_PUBLIC_NEON_DATA_API_URL/contacts?select=*" -H "Authorization: Bearer not.a.real.jwt"
+# HTTP 400 — "Provided authentication token is not a valid JWT encoding"
+```
+
+**4. The write API rejects unauthenticated requests.**
+
+```bash
+curl -X POST http://localhost:3000/api/contacts \
+  -H "Content-Type: application/json" -d '{"name":"Mallory","priority":"high"}'
+# HTTP 401 — {"message":"You must be signed in to add a contact."}
+```
+
+**5. Applied schema confirmed.** `npm run db:push` reports the live state:
+
+```
+ROW LEVEL SECURITY: ENABLED
+
+ACTIVE POLICIES (4)
+  POLICY               CMD     ROLES            USING                       WITH CHECK
+  contacts_delete_own  DELETE  {authenticated}  (auth.user_id() = user_id)  —
+  contacts_insert_own  INSERT  {authenticated}  —                           (auth.user_id() = user_id)
+  contacts_select_own  SELECT  {authenticated}  (auth.user_id() = user_id)  —
+  contacts_update_own  UPDATE  {authenticated}  (auth.user_id() = user_id)  (auth.user_id() = user_id)
+
+✓ All four ownership policies present.
+```
+
+### Two-account isolation test
+
 <!-- FILL IN: screenshots showing User A's contact list, then User B signed in seeing only their own rows and not User A's. Note which live URL and which two test accounts were used. -->
 
-Steps performed: <!-- FILL IN, e.g. "Signed in as user-a@example.com and created three contacts. Signed out, signed in as user-b@example.com in a private window, and confirmed an empty list. Attempted a direct Data API read of User A's row id and confirmed zero rows returned." -->
-
-A useful extra check, since the Data API is publicly reachable — signed in as User B, request User A's row id directly and confirm zero rows come back:
+Steps to perform:
+1. Sign up as `user-a@example.com` and create two or three contacts.
+2. Sign out. In a private window, sign up as `user-b@example.com`. Confirm the list is empty.
+3. As User A, copy one contact's row `id` (visible in the network tab of the Data API response).
+4. As User B, request that row directly and confirm zero rows come back:
 
 ```bash
 curl "$NEXT_PUBLIC_NEON_DATA_API_URL/contacts?id=eq.<USER_A_ROW_ID>" \
@@ -313,11 +384,22 @@ curl "$NEXT_PUBLIC_NEON_DATA_API_URL/contacts?id=eq.<USER_A_ROW_ID>" \
 # Expected: []
 ```
 
+5. As User B, attempt to edit User A's contact through the API and confirm a 404:
+
+```bash
+curl -X PATCH "http://localhost:3000/api/contacts/<USER_A_ROW_ID>" \
+  -H "Authorization: Bearer <USER_B_JWT>" -H "Content-Type: application/json" \
+  -d '{"name":"Hijacked","priority":"low"}'
+# Expected: HTTP 404 — {"message":"Contact not found."}
+```
+
 **Secrets handling.** `.env.local` is listed in `.gitignore` and no secret values appear in Git history. Only `.env.example` with placeholder values is committed. `DATABASE_URL` appears nowhere in `app/`, `components/`, or `lib/` except in a comment stating that it is not used, and does not appear in the built client bundle:
 
 ```bash
 grep -rl "DATABASE_URL\|postgresql://" .next/static   # no matches
 ```
+
+`lib/server/data-api.ts` imports `server-only`, so the build fails if that module is ever pulled into a client component.
 
 ---
 
