@@ -34,6 +34,12 @@ const sortLabels: Record<SortKey, string> = {
 
 const priorityRank: Record<Priority, number> = { high: 0, medium: 1, low: 2 };
 
+const priorityLabels: Record<Priority, string> = {
+  high: 'High',
+  medium: 'Medium',
+  low: 'Low',
+};
+
 export function ContactsView() {
   const [contacts, setContacts] = React.useState<Contact[]>([]);
   const [status, setStatus] = React.useState<Status>('loading');
@@ -164,13 +170,18 @@ export function ContactsView() {
               onValueChange={(v) => v && setPriority(v as Priority | 'all')}
             >
               <SelectTrigger id="filter-priority" className="w-full">
-                <SelectValue />
+                {/* Base UI renders the raw value unless given a formatter. */}
+                <SelectValue>
+                  {(v: string | null) =>
+                    v === 'all' || v === null ? 'All priorities' : priorityLabels[v as Priority]
+                  }
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All priorities</SelectItem>
                 {PRIORITIES.map((p) => (
-                  <SelectItem key={p} value={p} className="capitalize">
-                    {p}
+                  <SelectItem key={p} value={p}>
+                    {priorityLabels[p]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -183,7 +194,9 @@ export function ContactsView() {
             </Label>
             <Select value={sort} onValueChange={(v) => v && setSort(v as SortKey)}>
               <SelectTrigger id="sort" className="w-full">
-                <SelectValue />
+                <SelectValue>
+                  {(v: string | null) => (v ? sortLabels[v as SortKey] : '')}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {(Object.keys(sortLabels) as SortKey[]).map((key) => (

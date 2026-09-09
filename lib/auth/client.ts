@@ -35,25 +35,24 @@ export const neon = createClient<Database>({
  * only because writes take a detour through our server routes for validation,
  * and the server must be able to act as this user rather than as a superuser.
  *
- * The 0.7.0-beta typings do not surface the /token endpoint's response shape,
- * so this reads the two documented field names defensively.
+ * This calls the auth service's /token endpoint directly rather than going
+ * through the SDK. @neondatabase/neon-js 0.7.0-beta lists a token endpoint in
+ * its internal endpoint map but does not expose a working accessor on
+ * `client.auth`, so the SDK route returns undefined and every write fails with
+ * a bogus "session expired". The session cookie is HttpOnly, so
+ * `credentials: 'include'` is what authenticates this call — we never read the
+ * cookie ourselves, the browser attaches it.
  */
 export async function getAccessToken(): Promise<string | null> {
   try {
-    const auth = neon.auth as unknown as {
-      token?: () => Promise<{ data?: { token?: string } | null }>;
-      getAccessToken?: () => Promise<{ data?: { accessToken?: string; token?: string } | null }>;
-    };
+    const response = await fetch(`${authUrl}/token`, {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) return null;
 
-    if (typeof auth.token === 'function') {
-      const res = await auth.token();
-      if (res?.data?.token) return res.data.token;
-    }
-    if (typeof auth.getAccessToken === 'function') {
-      const res = await auth.getAccessToken();
-      return res?.data?.accessToken ?? res?.data?.token ?? null;
-    }
-    return null;
+    const body = (await response.json()) as { token?: string; accessToken?: string };
+    return body.token ?? body.accessToken ?? null;
   } catch {
     return null;
   }

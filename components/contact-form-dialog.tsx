@@ -33,6 +33,12 @@ type Props = {
   trigger: React.ReactElement;
 };
 
+const priorityLabels: Record<Priority, string> = {
+  high: 'High',
+  medium: 'Medium',
+  low: 'Low',
+};
+
 const empty = {
   name: '',
   company: '',
@@ -70,8 +76,17 @@ export function ContactFormDialog({ contact, onSaved, trigger }: Props) {
     );
   }, [open, contact]);
 
-  const set = (key: keyof typeof empty) => (value: string) =>
+  const set = (key: keyof typeof empty) => (value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+    // Drop this field's error the moment it is edited; leaving it up while the
+    // user fixes the problem reads as though the fix did not register.
+    setFieldErrors((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -172,12 +187,14 @@ export function ContactFormDialog({ contact, onSaved, trigger }: Props) {
                 onValueChange={(v) => v && set('priority')(v)}
               >
                 <SelectTrigger id="priority" className="w-full">
-                  <SelectValue />
+                  <SelectValue>
+                    {(v: string | null) => (v ? priorityLabels[v as Priority] : '')}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {PRIORITIES.map((p) => (
-                    <SelectItem key={p} value={p} className="capitalize">
-                      {p}
+                    <SelectItem key={p} value={p}>
+                      {priorityLabels[p]}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -195,7 +212,9 @@ export function ContactFormDialog({ contact, onSaved, trigger }: Props) {
             />
           </Field>
 
-          {formError && (
+          {/* Only summarise when the message is not already shown inline under
+              a field, otherwise the same sentence appears twice. */}
+          {formError && Object.keys(fieldErrors).length !== 1 && (
             <Alert variant="destructive" role="alert">
               <AlertDescription>{formError}</AlertDescription>
             </Alert>

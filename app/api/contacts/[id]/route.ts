@@ -44,15 +44,25 @@ export async function PATCH(request: Request, { params }: Ctx) {
     .single();
 
   if (error) {
-    // PGRST116 = "no rows returned". Either the contact does not exist, or it
-    // exists but belongs to someone else and RLS hid it. We answer the same
-    // way for both on purpose: distinguishing them would confirm to an
-    // attacker that a given id is real.
+    // PGRST116 = "no rows returned" when the client demands exactly one.
     if (error.code === 'PGRST116') {
       return json({ message: 'Contact not found.' }, 404);
     }
     const { message, status } = friendlyDbError(error);
     return json({ message }, status);
+  }
+
+  // An UPDATE that matches zero rows is NOT an error here — the Data API
+  // returns success with a null body. That is what an RLS-hidden row looks
+  // like: the UPDATE policy's USING clause filtered it out before the write,
+  // so there was nothing to update and nothing to return. Without this branch
+  // the route would answer 200 {"contact": null} and the UI would write null
+  // into the list.
+  //
+  // "Not found" and "not yours" deliberately produce the same 404. Telling
+  // them apart would confirm to an attacker that a given id is real.
+  if (!data) {
+    return json({ message: 'Contact not found.' }, 404);
   }
 
   return json({ contact: data });
