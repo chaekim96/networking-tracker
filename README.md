@@ -2,7 +2,7 @@
 
 A private networking tracker for the people you want to stay connected with at Berkeley. Each user signs in with their own account and manages a personal contact list: name, company, role, where you met, notes, and a priority level. Contacts are stored in Neon Postgres and isolated per user by Row Level Security enforced **in the database**, so one user can never read or modify another user's records even though the Data API is publicly reachable. Built with Next.js, deployed on Vercel.
 
-**Live app:** https://networking-tracker-chae13.vercel.app
+**Live app:** https://networking-tracker-five-sage.vercel.app
 
 ---
 
@@ -24,28 +24,61 @@ A private networking tracker for the people you want to stay connected with at B
 
 ## Product Walkthrough
 
-<!-- FILL IN: embed each screenshot or recording directly under its heading. -->
+Every screenshot below was captured from the deployed application at
+`https://networking-tracker-five-sage.vercel.app`, not from localhost.
 
 **Sign in and sign out**
-<!-- screenshot or short recording -->
+
+Signed-out visitors land on the sign-in page; `/contacts` redirects here.
+
+![Sign in](docs/screenshots/01-sign-in.png)
+![Sign up](docs/screenshots/02-sign-up.png)
+
+After clicking **Sign out**, the session ends and the app returns to sign-in.
+
+![Signed out](docs/screenshots/12-signed-out.png)
 
 **Creating a contact**
-<!-- screenshot -->
+
+![Create a contact](docs/screenshots/05-create-contact.png)
+
+**The contact list — success state**
+
+![Contact list](docs/screenshots/03-contact-list.png)
 
 **Editing and deleting a contact**
-<!-- screenshot -->
+
+![Edit a contact](docs/screenshots/06-edit-contact.png)
+![Delete a contact](docs/screenshots/07-delete-contact.png)
 
 **Data surviving a browser refresh**
-<!-- screenshot -->
+
+The same list after a full page reload — the rows come back from Neon Postgres,
+not from browser state.
+
+![Persists after refresh](docs/screenshots/08-persists-after-refresh.png)
 
 **Sorting and filtering the contact list**
-<!-- screenshot -->
+
+Filtered to `High` priority and sorted `Name A–Z`. The header reports
+"Showing 2 of 6" so the active filter is visible rather than silent.
+
+![Sort and filter](docs/screenshots/09-sort-and-filter.png)
 
 **Invalid input failing safely**
-<!-- screenshot showing an empty name or an invalid priority rejected with a clear error message -->
+
+Submitting with an empty name. The field is marked invalid and the reason is
+stated in plain language. The same submission is rejected again server-side by
+`validateContact()` and a third time by the `contacts_name_not_blank` CHECK
+constraint, so the message is a courtesy, not the defence.
+
+![Invalid input rejected](docs/screenshots/04-invalid-input-rejected.png)
 
 **Mobile view**
-<!-- screenshot at narrow width -->
+
+At 390×844. Controls stack, the header collapses, and cards reflow.
+
+![Mobile view](docs/screenshots/10-mobile.png)
 
 ---
 
@@ -373,9 +406,34 @@ ACTIVE POLICIES (4)
 
 ### Two-account isolation test
 
-<!-- FILL IN: screenshots showing User A's contact list, then User B signed in seeing only their own rows and not User A's. Note which live URL and which two test accounts were used. -->
+Performed against the live deployment at
+`https://networking-tracker-five-sage.vercel.app` with two accounts,
+`rls-test-a@example.com` and `rls-test-b@example.com`.
 
-Steps to perform:
+**User A** is signed in and sees six contacts:
+
+![User A's contacts](docs/screenshots/11-isolation-user-a.png)
+
+**User B**, signed in to the same deployment against the same `contacts`
+table, sees zero. Not an error, not a permission warning — User A's rows
+simply do not exist from B's session, because the SELECT policy filtered them
+out inside Postgres:
+
+![User B sees nothing of A's](docs/screenshots/13-isolation-user-b.png)
+
+The API-level half of the same test, run against the live deployment:
+
+| Attempt as User B | Result |
+|---|---|
+| List contacts | `[]` |
+| Request User A's row id directly via the Data API | `[]` |
+| `PATCH /api/contacts/<A's row id>` | `404 Contact not found.` |
+| `DELETE /api/contacts/<A's row id>` | `404 Contact not found.` |
+| Send `user_id` of another account in a create payload | Ignored; row is stamped with the caller's own id |
+
+After all of the above, User A's rows were re-read and found unchanged.
+
+To reproduce:
 1. Sign up as `user-a@example.com` and create two or three contacts.
 2. Sign out. In a private window, sign up as `user-b@example.com`. Confirm the list is empty.
 3. As User A, copy one contact's row `id` (visible in the network tab of the Data API response).
