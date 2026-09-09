@@ -24,7 +24,7 @@ A private networking tracker for the people you want to stay connected with at B
 
 ## Product Walkthrough
 
-Every screenshot below was captured from the deployed application at
+All 15 screenshots below were captured from the deployed application at
 `https://networking-tracker-five-sage.vercel.app`, not from localhost.
 
 **Sign in and sign out**
@@ -79,6 +79,26 @@ constraint, so the message is a courtesy, not the defence.
 At 390×844. Controls stack, the header collapses, and cards reflow.
 
 ![Mobile view](docs/screenshots/10-mobile.png)
+
+**The four list states**
+
+*Loading* — skeleton rows matching the shape of the real content, so the
+layout does not jump when data arrives. Captured with the Data API response
+held open:
+
+![Loading state](docs/screenshots/14-loading-state.png)
+
+*Empty* — distinct from "your filters match nothing", which has its own copy
+and a Clear filters action:
+
+![Empty state](docs/screenshots/13-isolation-user-b.png)
+
+*Error* — captured by forcing the contacts request to fail. The message is
+written for a person and the retry is one click, with no raw exception text:
+
+![Error state](docs/screenshots/15-error-state.png)
+
+*Success* is the populated list shown further up.
 
 ---
 
@@ -309,17 +329,47 @@ The tests deliberately exercise the shapes a hand-crafted `curl` request would s
 **Test file location:** [`__tests__/validation.test.ts`](__tests__/validation.test.ts)
 
 **Passing test output:**
+
 ```
+$ npm test
+
 > networking-tracker@0.1.0 test
 > vitest run
 
  RUN  v4.1.11 /Users/chaekim/Desktop/networking-tracker
 
- ✓ __tests__/validation.test.ts (19 tests) 3ms
 
  Test Files  1 passed (1)
       Tests  19 passed (19)
-   Duration  95ms
+   Start at  21:33:35
+   Duration  100ms (transform 17ms, setup 0ms, import 24ms, tests 3ms, environment 0ms)
+```
+
+Per-test names, via `npx vitest run --reporter=verbose`:
+
+```
+ ✓ name validation > accepts a valid contact and returns normalised values
+ ✓ name validation > rejects an empty name with a clear message
+ ✓ name validation > rejects a whitespace-only name
+ ✓ name validation > rejects a missing name
+ ✓ name validation > rejects a non-string name
+ ✓ name validation > rejects a name over the length cap
+ ✓ name validation > trims surrounding whitespace from an otherwise valid name
+ ✓ priority validation > accepts the allowed value high
+ ✓ priority validation > accepts the allowed value medium
+ ✓ priority validation > accepts the allowed value low
+ ✓ priority validation > rejects a value outside the allowed set
+ ✓ priority validation > rejects values that differ only by case
+ ✓ priority validation > rejects a missing priority
+ ✓ priority validation > rejects non-string priorities
+ ✓ priority validation > isPriority guards the allowed set
+ ✓ optional fields > normalises blank optional fields to null
+ ✓ optional fields > reports several problems at once
+ ✓ ownership cannot be smuggled in > drops user_id and id from the payload
+ ✓ ownership cannot be smuggled in > rejects non-object payloads
+
+ Test Files  1 passed (1)
+      Tests  19 passed (19)
 ```
 
 ---
