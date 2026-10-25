@@ -8,6 +8,7 @@ const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://networking-tracker-five-sage.vercel.app'),
   title: 'Networking Tracker',
   description: 'A private tracker for the people you want to stay connected with.',
 };
