@@ -1,4 +1,11 @@
-# Secure Networking Tracker
+<a href="https://networking-tracker-five-sage.vercel.app">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand/readme/header-dark.png">
+  <img src="brand/readme/header-light.png" alt="Networking Tracker: Keeping track of every coffee chat, without sharing a thing.">
+</picture>
+</a>
+
+**[Try it live →](https://networking-tracker-five-sage.vercel.app)**
 
 A private networking tracker for the people you want to stay connected with at Berkeley. Each user signs in with their own account and manages a personal contact list: name, company, role, where you met, notes, and a priority level. Contacts are stored in Neon Postgres and isolated per user by Row Level Security enforced **in the database**, so one user can never read or modify another user's records even though the Data API is publicly reachable. Built with Next.js, deployed on Vercel.
 
@@ -585,3 +592,7 @@ grep -rl "DATABASE_URL\|postgresql://" .next/static   # no matches
 - Move sort and filter into the Data API query so the app scales past a few hundred contacts.
 - Add a "last contacted" date and a follow-up reminder, which is the actual product gap for a networking tracker.
 - Add optimistic UI updates so edits feel instant instead of waiting on the round trip.
+
+---
+
+<p align="center"><a href="https://chaekim.vercel.app"><img src="brand/readme/seal.svg" width="10" height="10" alt=""> <sub>a Chae Kim build</sub></a></p>
